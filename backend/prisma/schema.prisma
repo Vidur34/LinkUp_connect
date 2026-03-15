@@ -1,0 +1,306 @@
+// This is your Prisma schema file
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              String   @id @default(uuid())
+  name            String
+  email           String   @unique
+  password        String
+  accountType     String   @default("student") // "student" | "organisation"
+  department      String?
+  year            Int?
+  skills          String[]
+  interests       String[]
+  bio             String?
+  avatar          String?
+  networkingScore Int      @default(0)
+  // Mentor fields
+  isOpenToMentor  Boolean  @default(false)
+  mentorSkills    String[]
+  mentorBio       String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  sentConnections      Connection[]         @relation("Sender")
+  receivedConnections  Connection[]         @relation("Receiver")
+  eventJoins           EventJoin[]
+  teamMemberships      TeamMember[]
+  sentMessages         Message[]            @relation("MessageSender")
+  receivedMessages     Message[]            @relation("MessageReceiver")
+  teamsCreated         Team[]
+  notifications        Notification[]
+  marketplaceListings  MarketplaceListing[]
+  eventReviews         EventReview[]
+  blogs                Blog[]
+  blogVotes            BlogVote[]
+  blogComments         BlogComment[]
+  internshipGuides     InternshipGuide[]
+  guideVotes           GuideVote[]
+  orgFollows           OrgFollow[]           @relation("StudentFollows")
+  mentorEndorsements   SkillEndorsement[]    @relation("MentorEndorsements")
+  endorsementsGiven    SkillEndorsement[]    @relation("EndorserGiven")
+}
+
+model Organisation {
+  id              String   @id @default(uuid())
+  name            String
+  email           String   @unique
+  password        String
+  description     String?
+  category        String   // Technical/Cultural/Sports/Music/etc
+  avatar          String?
+  coverImage      String?
+  followers       Int      @default(0)
+  isVerified      Boolean  @default(false) // blue tick when followers >= 100
+  instagramHandle String?
+  websiteUrl      String?
+  createdAt       DateTime @default(now())
+
+  orgFollows  OrgFollow[]
+  events      Event[]     @relation("OrgEvents")
+}
+
+model OrgFollow {
+  id         String   @id @default(uuid())
+  studentId  String
+  orgId      String
+  followedAt DateTime @default(now())
+
+  student User @relation("StudentFollows", fields: [studentId], references: [id], onDelete: Cascade)
+  org     Organisation @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, orgId])
+}
+
+model Connection {
+  id         String   @id @default(uuid())
+  senderId   String
+  receiverId String
+  status     String   @default("pending")
+  createdAt  DateTime @default(now())
+
+  sender   User @relation("Sender", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver User @relation("Receiver", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@unique([senderId, receiverId])
+}
+
+model Event {
+  id          String    @id @default(uuid())
+  name        String
+  description String
+  venue       String
+  startTime   DateTime
+  endTime     DateTime
+  category    String
+  maxCapacity Int?
+  eventSlug   String?   @unique
+  isRecurring Boolean   @default(false)
+  orgId       String?
+  createdAt   DateTime  @default(now())
+
+  joins        EventJoin[]
+  reviews      EventReview[]
+  pastEditions PastEventEdition[]
+  org          Organisation? @relation("OrgEvents", fields: [orgId], references: [id])
+}
+
+model EventJoin {
+  id       String   @id @default(uuid())
+  userId   String
+  eventId  String
+  joinedAt DateTime @default(now())
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, eventId])
+}
+
+model EventReview {
+  id        String   @id @default(uuid())
+  eventId   String
+  userId    String
+  rating    Int      // 1-5
+  content   String
+  year      Int
+  helpful   Int      @default(0)
+  createdAt DateTime @default(now())
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, userId])
+}
+
+model PastEventEdition {
+  id          String   @id @default(uuid())
+  eventSlug   String
+  year        Int
+  name        String
+  description String?
+  reviews     Json?
+
+  event Event @relation(fields: [eventSlug], references: [eventSlug])
+}
+
+model Team {
+  id          String   @id @default(uuid())
+  name        String
+  description String
+  rolesNeeded String[]
+  maxSize     Int
+  creatorId   String
+  createdAt   DateTime @default(now())
+
+  creator User         @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  members TeamMember[]
+}
+
+model TeamMember {
+  id       String   @id @default(uuid())
+  teamId   String
+  userId   String
+  role     String
+  joinedAt DateTime @default(now())
+
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, userId])
+}
+
+model Message {
+  id         String   @id @default(uuid())
+  senderId   String
+  receiverId String
+  content    String
+  read       Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  sender   User @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver User @relation("MessageReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  type      String
+  message   String
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model MarketplaceListing {
+  id          String   @id @default(uuid())
+  title       String
+  description String
+  price       Float
+  type        String   // "sell" | "rent" | "free"
+  rentPerDay  Float?
+  category    String   // Books, Electronics, Instruments, Sports, Clothing, Other
+  images      String[]
+  condition   String   // New, Like New, Good, Fair
+  isAvailable Boolean  @default(true)
+  sellerId    String
+  views       Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  seller User @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+}
+
+model Blog {
+  id          String   @id @default(uuid())
+  authorId    String
+  title       String
+  content     String
+  tags        String[]
+  upvotes     Int      @default(0)
+  category    String
+  isPublished Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  author   User          @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  votes    BlogVote[]
+  comments BlogComment[]
+}
+
+model BlogVote {
+  id     String @id @default(uuid())
+  blogId String
+  userId String
+
+  blog Blog @relation(fields: [blogId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([blogId, userId])
+}
+
+model BlogComment {
+  id        String   @id @default(uuid())
+  blogId    String
+  authorId  String
+  content   String
+  createdAt DateTime @default(now())
+
+  blog   Blog @relation(fields: [blogId], references: [id], onDelete: Cascade)
+  author User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+}
+
+model InternshipGuide {
+  id                  String   @id @default(uuid())
+  company             String
+  companyLogo         String?
+  authorId            String
+  role                String
+  year                Int
+  stipend             String?
+  duration            String
+  difficulty          String   // Easy, Medium, Hard
+  upvotes             Int      @default(0)
+  resumeTips          String
+  applicationProcess  String
+  interviewRounds     Json
+  resourceLinks       String[]
+  timeline            String
+  createdAt           DateTime @default(now())
+
+  author User        @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  votes  GuideVote[]
+
+  @@unique([company, authorId])
+}
+
+model GuideVote {
+  id      String @id @default(uuid())
+  guideId String
+  userId  String
+
+  guide InternshipGuide @relation(fields: [guideId], references: [id], onDelete: Cascade)
+  user  User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([guideId, userId])
+}
+
+model SkillEndorsement {
+  id         String @id @default(uuid())
+  mentorId   String
+  endorserId String
+  skill      String
+
+  mentor   User @relation("MentorEndorsements", fields: [mentorId], references: [id], onDelete: Cascade)
+  endorser User @relation("EndorserGiven", fields: [endorserId], references: [id], onDelete: Cascade)
+
+  @@unique([mentorId, endorserId, skill])
+}
